@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Melon Jelly Knife</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="Interactive 3D watermelon jelly slice. Drag it to stretch it, or switch to the knife and draw across it to cut it into pieces." role="img"></canvas>
+    <svg class="stroke" id="stroke" aria-hidden="true"><line id="strokeLine" x1="0" y1="0" x2="0" y2="0"/></svg>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="fallback" id="fallback" hidden>
+      <div>
+        <span class="kicker">Renderer offline</span>
+        <h2 id="fallbackTitle">This specimen needs WebGPU.</h2>
+        <p id="fallbackDetail"></p>
+      </div>
+    </div>
+  </div>
+
+  <header class="masthead">
+    <div class="kicker">Material Studies / No. 009</div>
+    <h1><span>Melon</span><span>Jelly.</span></h1>
+    <p class="caption">A slice of summer.<br>A little wobble.<br>Too soft to share.</p>
+  </header>
+
+  <div class="status" id="status" data-state="idle" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="statusText">WEBGPU · STARTING</span></div>
+
+  <aside class="panel" aria-label="Specimen controls">
+    <header><span class="label">The Specimen</span><span>fig. 9</span></header>
+    <div class="group">
+      <span class="label">Tool</span>
+      <div class="tools" role="group" aria-label="Tool">
+        <button class="tool" type="button" data-tool="hand" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 10V5.5a1.2 1.2 0 0 1 2.4 0V9m0-4.8V3.8a1.2 1.2 0 0 1 2.4 0V9m0-4.2a1.2 1.2 0 0 1 2.4 0V9.5m0-3a1.2 1.2 0 0 1 2.4 0V12c0 3.3-2.4 5.5-5.4 5.5-2.2 0-3.6-1-4.8-2.8L3.3 11.6a1.3 1.3 0 0 1 2-1.6L6 11"/></svg>Hand</button>
+        <button class="tool" type="button" data-tool="knife" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l9.2-9.2M12.2 7.8l3.6-4.3c.8 1.6.3 4-1.4 5.7L12.6 11 9 7.4"/><path d="M3 17l2.6-.6"/></svg>Knife</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">Variety</span>
+      <div class="swatches" id="swatches" role="radiogroup" aria-label="Colour variety"></div>
+    </div>
+    <div class="group">
+      <div class="slider">
+        <div class="row"><label class="label" for="firmness">Firmness</label><output id="firmnessOut" for="firmness">0.40</output></div>
+        <input type="range" id="firmness" min="0" max="100" step="1" value="40">
+        <div class="ends"><span>trembling</span><span>set</span></div>
+      </div>
+      <div class="slider">
+        <div class="row"><label class="label" for="damping">Internal damping</label><output id="dampingOut" for="damping">0.45</output></div>
+        <input type="range" id="damping" min="0" max="100" step="1" value="45">
+        <div class="ends"><span>lively</span><span>syrupy</span></div>
+      </div>
+    </div>
+    <div class="group">
+      <div class="buttons">
+        <button class="btn" id="nudge" type="button">Give it a nudge</button>
+        <button class="btn" id="reset" type="button">Reset</button>
+      </div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="slow"><span class="box" aria-hidden="true"></span>¼ speed</label>
+        <label class="check"><input type="checkbox" id="mesh"><span class="box" aria-hidden="true"></span>Show mesh</label>
+      </div>
+      <button class="btn wide" id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </aside>
+
+  <section class="readouts" aria-label="Live readouts">
+    <p class="hint" id="hintText"><b>Hand</b>Grab any piece — tip, corner, flesh or rind — and pull.</p>
+    <dl class="stats">
+      <div><dt class="label">Mass</dt><dd>≈<span id="massOut">—</span><small>g</small></dd></div>
+      <div><dt class="label">Volume</dt><dd><span id="volOut">—</span><small>% of rest</small></dd></div>
+      <div><dt class="label">Kinetic</dt><dd><span id="keOut">—</span><small>µJ</small></dd></div>
+      <div><dt class="label">Pieces</dt><dd><span id="piecesOut">1</span></dd></div>
+    </dl>
+    <p class="footnote">Illustrative scale: 1 sim unit ≈ 3.5 cm, gummy at 1.3 g/cm³. Volume and energy are summed live over every tetrahedron and particle.</p>
+  </section>
+
+  <details class="notes">
+    <summary><span class="label">Inside the experiment</span></summary>
+    <div class="body">
+      <h3>A body made of tetrahedra</h3>
+      <p>The slice is a volumetric mesh of <span class="num" id="nParticles">—</span> particles and <span class="num" id="nTets">—</span> tetrahedra, solved with XPBD on a fixed 60&nbsp;Hz step split into 10 substeps. Each tetrahedron is pulled, with finite compliance, toward its best-fit rotated rest shape — a co-rotational elastic constraint that also flips inverted elements back out — and carries a volume constraint that keeps the jelly close to incompressible, so a stretched slice necks in like the real thing.</p>
+      <p>Tetrahedra in the rind are roughly three times stiffer than the flesh. Damping acts only on relative velocity along the mesh edges, so the slice still falls and tumbles freely while its wobble dies away. Ground contact projects particles out of the floor with Coulomb-style friction; the grab is a soft attachment on a patch of particles, bounded in reach.</p>
+      <h3>Cutting</h3>
+      <p>Every piece is a convex outline in the slice’s original rest plane, with rounded corners. Your stroke, read on the surface it was drawn over, fixes a vertical blade plane. For each piece it crosses, the piece’s current pose is fitted with a best rotation, the plane is carried back into rest space and becomes a straight line, and the outline is split along it — the two halves are prebuilt as fresh tetrahedral meshes the moment you let go. Then the steel knife comes down: its edge first presses a groove into the jelly, and when it breaks through the new pieces are swapped in, taking over the position and speed of the flesh they came from, while the blade wedges the faces apart on its way to the board. The blade is drawn behind the jelly surface, so the part that is buried in it is seen refracted. Each piece is its own soft body — grab it, stretch it, cut it again — and pieces push against each other instead of passing through.</p>
+      <h3>A surface that rides along</h3>
+      <p>The smooth surface, the seeds and the air bubbles are separate meshes, each vertex pinned to a tetrahedron by barycentric weights — so the seeds stretch, turn and travel with the flesh around them.</p>
+      <h3>Light through jelly</h3>
+      <p>WGSL shaders render the floor, seeds and bubbles first, then the slice’s back faces to measure how much jelly each view ray crosses. The front faces refract the scene behind by that thickness, absorb it with Beer–Lambert colour, add milky scattering in the pale layer, a back-lit glow at thin edges, Fresnel reflections of a procedural studio and GGX highlights. The floor gets a soft key shadow tinted by the jelly plus contact occlusion from a top-down height map.</p>
+    </div>
+  </details>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
