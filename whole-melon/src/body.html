@@ -1,0 +1,84 @@
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="Interactive 3D whole watermelon made of jelly. Drag it to wobble and stretch it, or switch to the knife and draw across it to cut it into pieces." role="img"></canvas>
+    <svg class="stroke" id="stroke" aria-hidden="true"><line id="strokeLine" x1="0" y1="0" x2="0" y2="0"/></svg>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="fallback" id="fallback" hidden>
+      <div>
+        <span class="kicker">Renderer offline</span>
+        <h2 id="fallbackTitle">This specimen needs WebGPU.</h2>
+        <p id="fallbackDetail"></p>
+      </div>
+    </div>
+  </div>
+
+  <header class="masthead">
+    <div class="kicker">Material Studies / No. 010</div>
+    <h1><span>Whole</span><span>Melon.</span></h1>
+    <p class="caption">Seven kilos of summer.<br>Set in a mould, turned out whole.<br>Bring a long knife.</p>
+  </header>
+
+  <div class="status" id="status" data-state="idle" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="statusText">WEBGPU · STARTING</span></div>
+
+  <aside class="panel" aria-label="Specimen controls">
+    <header><span class="label">The Specimen</span><span>fig. 10</span></header>
+    <div class="group">
+      <span class="label">Tool</span>
+      <div class="tools" role="group" aria-label="Tool">
+        <button class="tool" type="button" data-tool="hand" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 10V5.5a1.2 1.2 0 0 1 2.4 0V9m0-4.8V3.8a1.2 1.2 0 0 1 2.4 0V9m0-4.2a1.2 1.2 0 0 1 2.4 0V9.5m0-3a1.2 1.2 0 0 1 2.4 0V12c0 3.3-2.4 5.5-5.4 5.5-2.2 0-3.6-1-4.8-2.8L3.3 11.6a1.3 1.3 0 0 1 2-1.6L6 11"/></svg>Hand</button>
+        <button class="tool" type="button" data-tool="knife" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 17l9.2-9.2M12.2 7.8l3.6-4.3c.8 1.6.3 4-1.4 5.7L12.6 11 9 7.4"/><path d="M3 17l2.6-.6"/></svg>Knife</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">Variety</span>
+      <div class="swatches" id="swatches" role="radiogroup" aria-label="Colour variety"></div>
+    </div>
+    <div class="group">
+      <div class="slider">
+        <div class="row"><label class="label" for="firmness">Firmness</label><output id="firmnessOut" for="firmness">0.45</output></div>
+        <input type="range" id="firmness" min="0" max="100" step="1" value="45">
+        <div class="ends"><span>trembling</span><span>set</span></div>
+      </div>
+      <div class="slider">
+        <div class="row"><label class="label" for="damping">Internal damping</label><output id="dampingOut" for="damping">0.45</output></div>
+        <input type="range" id="damping" min="0" max="100" step="1" value="45">
+        <div class="ends"><span>lively</span><span>syrupy</span></div>
+      </div>
+    </div>
+    <div class="group">
+      <div class="buttons">
+        <button class="btn" id="nudge" type="button">Give it a nudge</button>
+        <button class="btn" id="reset" type="button">Reset</button>
+      </div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="slow"><span class="box" aria-hidden="true"></span>¼ speed</label>
+        <label class="check"><input type="checkbox" id="mesh"><span class="box" aria-hidden="true"></span>Show mesh</label>
+      </div>
+      <button class="btn wide" id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </aside>
+
+  <section class="readouts" aria-label="Live readouts">
+    <p class="hint" id="hintText"><b>Hand</b>Grab the melon anywhere and pull.</p>
+    <dl class="stats">
+      <div><dt class="label">Mass</dt><dd>≈<span id="massOut">—</span><small>kg</small></dd></div>
+      <div><dt class="label">Volume</dt><dd><span id="volOut">—</span><small>% of rest</small></dd></div>
+      <div><dt class="label">Kinetic</dt><dd><span id="keOut">—</span><small>mJ</small></dd></div>
+      <div><dt class="label">Pieces</dt><dd><span id="piecesOut">1</span></dd></div>
+      <div class="fps"><dt class="label">Render</dt><dd><span id="fpsOut">—</span><small>fps</small></dd></div>
+    </dl>
+    <p class="footnote">Scale: 1 sim unit = 10 cm, so the melon is 32 cm long. Jelly at 1.02 g/cm³. Volume and energy are summed live over every tetrahedron and particle.</p>
+  </section>
+
+  <details class="notes">
+    <summary><span class="label">Inside the experiment</span></summary>
+    <div class="body">
+      <h3>A melon written as a distance</h3>
+      <p>The melon is a signed distance field: an ellipsoid 32&nbsp;cm long with its belly softly flattened where it lay in the field. Skin, pith and flesh are bands of depth under that surface, so any cut, anywhere, finds the right colour. The stripes are noise wrapped around the long axis, seamless from stem to blossom end.</p>
+      <h3>Pieces</h3>
+      <p>Every piece is the melon clipped by the half-spaces of the cuts that made it, with the fresh edges rounded by a smooth maximum. All pieces keep the melon’s original rest frame, so the rind, the stripes and <span class="num" id="nSeeds">—</span> seeds stay where they grew. Each piece gets a surface-nets skin, a hexahedral lattice aligned to its own principal axes, and a barycentric embedding that pins one to the other. Seeds are only meshed near cut faces; a seed the blade passes through stays with one side and settles just under the new face.</p>
+      <h3>Physics</h3>
+      <p>XPBD at a fixed 60&nbsp;Hz with 6 substeps, now <span class="num" id="nParticles">—</span> particles in <span class="num" id="nCells">—</span> cells. Each 8-node cell is pulled toward its best-fit rotated rest shape, stiffening as it strains; every tetrahedron keeps its volume. Damping acts on edges and on each piece’s deformation relative to its rigid motion, never on its fall or tumble. Pieces collide against each other’s exact distance field in a best-fit frame, roll to a stop on the table and fall asleep when calm.</p>
+      <h3>Light through jelly</h3>
+      <p>Seeds, bubbles and the knife are drawn first, then the nearest back faces to measure how much jelly each view ray crosses. The front faces refract the scene by that thickness with Beer–Lambert absorption, milky scattering in the pith, a back-lit glow at thin edges, sugar glints, Fresnel studio reflections and GGX highlights. Normals follow the local deformation of the jelly. The key shadow is tinted by whatever the light crossed first.</p>
+    </div>
+  </details>
