@@ -1,0 +1,57 @@
+<nav class="levels" id="levels" aria-label="Level">
+  <span class="levels-label">Level</span>
+  <a href="slice.html" data-level="1"><b>1</b>Slice</a>
+  <a href="index.html" data-level="2"><b>2</b>Whole</a>
+  <a href="fugu.html" data-level="3"><b>3</b>Fugu</a>
+</nav>
+<div class="levels-spacer" aria-hidden="true"></div>
+<style>
+  /* Level switcher: a pill beside the status on wide screens, a floating bar at the bottom on phones.
+     It only uses the tokens every level defines (--ink, --bg, --line, --line-strong, --muted, --mono). */
+  .levels { position: fixed; z-index: 20; display: inline-flex; align-items: stretch; border: 1px solid var(--line-strong);
+    background: var(--bg); box-shadow: 0 6px 18px -10px rgba(0, 0, 0, .35); font: 500 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+    left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .levels.beside { left: auto; transform: none; bottom: auto; box-shadow: none; background: color-mix(in srgb, var(--bg) 88%, transparent); }
+  .levels-label { display: inline-flex; align-items: center; padding: 0 10px; color: var(--muted); border-right: 1px solid var(--line); }
+  .levels a { display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; min-height: 44px; color: var(--ink); text-decoration: none; }
+  .levels.beside a { min-height: 26px; }
+  .levels a + a { border-left: 1px solid var(--line); }
+  .levels a b { font-weight: 500; color: var(--muted); }
+  .levels a:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  .levels a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+  .levels a[aria-current="page"] b { color: inherit; opacity: .6; }
+  .levels a:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+  /* room under the last section so the floating bar never hides it for good */
+  .levels-spacer { display: none; }
+  @media (max-width: 860px), (max-height: 560px) and (max-width: 1000px) { .levels-spacer { display: block; grid-column: 1 / -1; height: calc(72px + env(safe-area-inset-bottom, 0px)); } }
+  @media (max-width: 380px) { .levels-label { display: none; } .levels a { padding: 0 10px; } }
+</style>
+<script>
+  (function () {
+    var nav = document.getElementById('levels'), status = document.getElementById('status');
+    var current = nav.getAttribute('data-current');
+    nav.querySelectorAll('a').forEach(function (a) { if (a.dataset.level === current) a.setAttribute('aria-current', 'page'); });
+    var stacked = matchMedia('(max-width: 860px), (max-height: 560px) and (max-width: 1000px)');
+    // on wide screens the switcher sits just left of the status pill, on the same line
+    function place() {
+      var beside = !stacked.matches && status;
+      nav.classList.toggle('beside', !!beside);
+      if (!beside) { nav.style.top = nav.style.right = ''; return; }
+      var r = status.getBoundingClientRect();
+      nav.style.top = r.top + 'px';
+      nav.style.right = (document.documentElement.clientWidth - r.left + 10) + 'px';
+      nav.style.height = r.height + 'px';
+    }
+    place();
+    addEventListener('resize', place);
+    stacked.addEventListener('change', place);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+    if (window.ResizeObserver && status) new ResizeObserver(place).observe(status);
+    // number keys switch levels
+    addEventListener('keydown', function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey || (e.target.closest && e.target.closest('input, textarea, select'))) return;
+      var a = nav.querySelector('a[data-level="' + e.key + '"]');
+      if (a && e.key !== current) location.href = a.getAttribute('href');
+    });
+  })();
+</script>
