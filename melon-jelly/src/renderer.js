@@ -57,6 +57,15 @@ export const M4 = {
 };
 
 export const MSAA = 4;
+
+// Render presets for the Jelly Studio switcher: device pixels per CSS pixel (cap), MSAA samples,
+// shadow map size, soft-shadow taps, contact-occlusion rings, refraction taps.
+export const QUALITY = {
+  studio:   { res: 2,    msaa: 4, shadow: 1024, shadowTaps: 16, aoRings: 3, refrTaps: 7 },
+  balanced: { res: 1,    msaa: 4, shadow: 1024, shadowTaps: 8, aoRings: 2, refrTaps: 4 },
+  lite:     { res: 0.75, msaa: 1, shadow: 768, shadowTaps: 4, aoRings: 1, refrTaps: 2 },
+  minimal:  { res: 0.5,  msaa: 1, shadow: 512, shadowTaps: 1, aoRings: 0, refrTaps: 1 },
+};
 export const UBO_SIZE = 544;
 
 export class Renderer {
@@ -95,8 +104,9 @@ export class Renderer {
     this.cmpSampler = device.createSampler({ compare: 'less', magFilter: 'linear', minFilter: 'linear' });
     this.linSampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
 
-    this.shadowSize = 1024; this.topSize = 512;
-    this.shadowTex = device.createTexture({ size: [this.shadowSize, this.shadowSize], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+    this.q = QUALITY[Renderer.quality] || QUALITY.studio;
+    this.topSize = 512;
+    this.makeShadowMaps();
     this.topTex = device.createTexture({ size: [this.topSize, this.topSize], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
 
     this.buildPipelines();
@@ -141,6 +151,24 @@ export class Renderer {
     this.particleBuf = device.createBuffer({ size: nParticles * 12, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
   }
 
+  makeShadowMaps() {
+    const n = this.q.shadow;
+    this.shadowTex && this.shadowTex.destroy();
+    this.shadowSize = n;
+    this.shadowTex = this.device.createTexture({ size: [n, n], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+  }
+
+  // switch render preset: shadow maps, pipelines (MSAA, shader taps) and screen targets are rebuilt
+  setQuality(name) {
+    const q = QUALITY[name] || QUALITY.studio;
+    Renderer.quality = name in QUALITY ? name : 'studio';
+    this.q = q;
+    if (q.shadow !== this.shadowSize) this.makeShadowMaps();
+    this.buildPipelines();
+    const w = this.w, h = this.h; this.w = this.h = 0;
+    if (w) this.resize(w, h);
+  }
+
   buildPipelines() {
     const d = this.device;
     const V = GPUShaderStage.VERTEX, F = GPUShaderStage.FRAGMENT;
@@ -172,7 +200,8 @@ export class Renderer {
       { arrayStride: 16, attributes: [{ shaderLocation: 2, offset: 0, format: 'float32x3' }, { shaderLocation: 3, offset: 12, format: 'float32' }] },
     ];
     const HDR = 'rgba16float';
-    const ms = { count: MSAA };
+    const ms = { count: this.q.msaa };
+    const q = this.q;
 
     this.pDepth = d.createRenderPipeline({
       label: 'depth', layout: pl(this.layoutDepth),
@@ -183,7 +212,7 @@ export class Renderer {
     this.pBackground = d.createRenderPipeline({
       label: 'background', layout: pl(this.layoutScene),
       vertex: { module: this.modules.scene, entryPoint: 'vsFull' },
-      fragment: { module: this.modules.scene, entryPoint: 'fsBackground', targets: [{ format: HDR }] },
+      fragment: { module: this.modules.scene, entryPoint: 'fsBackground', targets: [{ format: HDR }], constants: { SHADOW_TAPS: q.shadowTaps, AO_RINGS: q.aoRings } },
       depthStencil: { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'always' },
       multisample: ms,
     });
@@ -212,7 +241,7 @@ export class Renderer {
     this.pJelly = d.createRenderPipeline({
       label: 'jelly', layout: pl(this.layoutMain),
       vertex: { module: this.modules.main, entryPoint: 'vsJelly', buffers: meshVB },
-      fragment: { module: this.modules.main, entryPoint: 'fsJelly', targets: [{ format: HDR }] },
+      fragment: { module: this.modules.main, entryPoint: 'fsJelly', targets: [{ format: HDR }], constants: { REFR_TAPS: q.refrTaps } },
       primitive: { topology: 'triangle-list', cullMode: 'back' },
       depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
       multisample: ms,
@@ -256,6 +285,12 @@ export class Renderer {
     if (problems.length) throw new Error('WGSL compile error\n' + problems.join('\n'));
   }
 
+  // a colour target: multisampled and resolved, or drawn straight into the texture without MSAA
+  target(ms, tex, clearValue) {
+    return ms ? { view: ms.createView(), resolveTarget: tex.createView(), clearValue, loadOp: 'clear', storeOp: 'discard' }
+              : { view: tex.createView(), clearValue, loadOp: 'clear', storeOp: 'store' };
+  }
+
   resize(w, h) {
     w = Math.max(1, Math.floor(w)); h = Math.max(1, Math.floor(h));
     if (w === this.w && h === this.h) return;
@@ -264,12 +299,13 @@ export class Renderer {
     const d = this.device;
     for (const t of ['msScene', 'msDepth', 'sceneTex', 'backTex', 'backDepth', 'msHdr', 'hdrTex']) this[t] && this[t].destroy();
     const RA = GPUTextureUsage.RENDER_ATTACHMENT, TB = GPUTextureUsage.TEXTURE_BINDING;
-    this.msScene = d.createTexture({ size: [w, h], format: 'rgba16float', sampleCount: MSAA, usage: RA });
-    this.msDepth = d.createTexture({ size: [w, h], format: 'depth24plus', sampleCount: MSAA, usage: RA });
+    const ms = this.q.msaa;
+    this.msScene = ms > 1 ? d.createTexture({ size: [w, h], format: 'rgba16float', sampleCount: ms, usage: RA }) : null;
+    this.msDepth = d.createTexture({ size: [w, h], format: 'depth24plus', sampleCount: ms, usage: RA });
     this.sceneTex = d.createTexture({ size: [w, h], format: 'rgba16float', usage: RA | TB });
     this.backTex = d.createTexture({ size: [w, h], format: 'r32float', usage: RA | TB });
     this.backDepth = d.createTexture({ size: [w, h], format: 'depth32float', usage: RA });
-    this.msHdr = d.createTexture({ size: [w, h], format: 'rgba16float', sampleCount: MSAA, usage: RA });
+    this.msHdr = ms > 1 ? d.createTexture({ size: [w, h], format: 'rgba16float', sampleCount: ms, usage: RA }) : null;
     this.hdrTex = d.createTexture({ size: [w, h], format: 'rgba16float', usage: RA | TB });
     this.bgMain = d.createBindGroup({ layout: this.layoutMain, entries: [
       { binding: 0, resource: { buffer: this.ubo } },
@@ -336,7 +372,7 @@ export class Renderer {
     // scene behind / inside the jelly
     {
       const p = enc.beginRenderPass({
-        colorAttachments: [{ view: this.msScene.createView(), resolveTarget: this.sceneTex.createView(), clearValue: [0, 0, 0, 1000], loadOp: 'clear', storeOp: 'discard' }],
+        colorAttachments: [this.target(this.msScene, this.sceneTex, [0, 0, 0, 1000])],
         depthStencilAttachment: { view: this.msDepth.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
       });
       p.setBindGroup(0, this.bgScene);
@@ -366,7 +402,7 @@ export class Renderer {
     // jelly
     {
       const p = enc.beginRenderPass({
-        colorAttachments: [{ view: this.msHdr.createView(), resolveTarget: this.hdrTex.createView(), clearValue: [0, 0, 0, 1], loadOp: 'clear', storeOp: 'discard' }],
+        colorAttachments: [this.target(this.msHdr, this.hdrTex, [0, 0, 0, 1])],
         depthStencilAttachment: { view: this.msDepth.createView(), depthLoadOp: 'load', depthStoreOp: 'discard' },
       });
       p.setBindGroup(0, this.bgMain);

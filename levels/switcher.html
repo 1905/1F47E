@@ -1,52 +1,115 @@
-<nav class="levels" id="levels" aria-label="Level">
-  <span class="levels-label">Level</span>
-  <a href="slice.html" data-level="1"><b>1</b>Slice</a>
-  <a href="index.html" data-level="2"><b>2</b>Whole</a>
-  <a href="fugu.html" data-level="3"><b>3</b>Fugu</a>
+<nav class="studio" id="studio" aria-label="Jelly Studio">
+  <div class="studio-row studio-levels">
+    <a href="slice.html" data-level="1"><b>1</b>Slice</a>
+    <a href="index.html" data-level="2"><b>2</b>Whole</a>
+    <a href="fugu.html" data-level="3"><b>3</b>Fugu</a>
+  </div>
+  <div class="studio-row studio-render">
+    <label for="studioRender">Render</label>
+    <select id="studioRender">
+      <option value="studio">Studio</option>
+      <option value="balanced">Balanced</option>
+      <option value="lite">Lite</option>
+      <option value="minimal">Minimal</option>
+    </select>
+    <output id="studioFps" for="studioRender" aria-live="off"><span>—</span> fps</output>
+  </div>
 </nav>
-<div class="levels-spacer" aria-hidden="true"></div>
+<div class="studio-spacer" aria-hidden="true"></div>
 <style>
-  /* Level switcher: a pill beside the status on wide screens, a floating bar at the bottom on phones.
-     It only uses the tokens every level defines (--ink, --bg, --line, --line-strong, --muted, --mono). */
-  .levels { position: fixed; z-index: 20; display: inline-flex; align-items: stretch; border: 1px solid var(--line-strong);
-    background: var(--bg); box-shadow: 0 6px 18px -10px rgba(0, 0, 0, .35); font: 500 10.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
-    left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
-  .levels.beside { left: auto; transform: none; bottom: auto; box-shadow: none; background: color-mix(in srgb, var(--bg) 88%, transparent); }
-  .levels-label { display: inline-flex; align-items: center; padding: 0 10px; color: var(--muted); border-right: 1px solid var(--line); }
-  .levels a { display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; min-height: 44px; color: var(--ink); text-decoration: none; }
-  .levels.beside a { min-height: 26px; }
-  .levels a + a { border-left: 1px solid var(--line); }
-  .levels a b { font-weight: 500; color: var(--muted); }
-  .levels a:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-  .levels a[aria-current="page"] { background: var(--ink); color: var(--bg); }
-  .levels a[aria-current="page"] b { color: inherit; opacity: .6; }
-  .levels a:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+  /* Jelly Studio bar: levels, render preset and a live frame rate. Beside the status pill on wide
+     screens, a floating bar at the bottom on phones. Uses only tokens every level defines. */
+  .studio { position: fixed; z-index: 20; display: flex; border: 1px solid var(--line-strong); background: var(--bg);
+    box-shadow: 0 6px 18px -10px rgba(0, 0, 0, .35); font: 500 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+    left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); flex-direction: column; width: max-content; max-width: calc(100vw - 24px); }
+  .studio-row { display: flex; align-items: stretch; }
+  .studio-row + .studio-row { border-top: 1px solid var(--line); }
+  .studio a, .studio label, .studio select, .studio output { display: inline-flex; align-items: center; min-height: 42px; padding: 0 12px; }
+  .studio a { flex: 1; justify-content: center; gap: 7px; color: var(--ink); text-decoration: none; }
+  .studio a + a { border-left: 1px solid var(--line); }
+  .studio a b { font-weight: 500; color: var(--muted); }
+  .studio a:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  .studio a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+  .studio a[aria-current="page"] b { color: inherit; opacity: .6; }
+  .studio label { color: var(--muted); padding-right: 4px; }
+  .studio select { flex: 1; appearance: none; -webkit-appearance: none; border: 0; border-radius: 0; background-color: transparent; color: var(--ink);
+    font: inherit; letter-spacing: inherit; text-transform: uppercase; cursor: pointer; padding-right: 26px;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-size: 4px 4px; background-position: calc(100% - 15px) 50%, calc(100% - 11px) 50%; background-repeat: no-repeat; }
+  .studio output { border-left: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 7.6em; justify-content: flex-end; gap: .5em; }
+  .studio output span { color: var(--ink); }
+  .studio output[data-load="slow"] span { color: #b4513f; }
+  .studio a:focus-visible, .studio select:focus-visible { outline: 1px solid var(--ink); outline-offset: -3px; }
+  /* wide screens: one row, beside the status pill */
+  .studio.beside { flex-direction: row; left: auto; transform: none; bottom: auto; box-shadow: none; background: color-mix(in srgb, var(--bg) 90%, transparent); }
+  .studio.beside .studio-row + .studio-row { border-top: 0; border-left: 1px solid var(--line-strong); }
+  .studio.beside a, .studio.beside label, .studio.beside select, .studio.beside output { min-height: 0; }
   /* room under the last section so the floating bar never hides it for good */
-  .levels-spacer { display: none; }
-  @media (max-width: 860px), (max-height: 560px) and (max-width: 1000px) { .levels-spacer { display: block; grid-column: 1 / -1; height: calc(72px + env(safe-area-inset-bottom, 0px)); } }
-  @media (max-width: 380px) { .levels-label { display: none; } .levels a { padding: 0 10px; } }
+  .studio-spacer { display: none; }
+  @media (max-width: 860px), (max-height: 560px) and (max-width: 1000px) { .studio-spacer { display: block; grid-column: 1 / -1; height: calc(110px + env(safe-area-inset-bottom, 0px)); } }
+  @media (max-width: 380px) { .studio a, .studio label, .studio select, .studio output { padding: 0 9px; } }
 </style>
 <script>
   (function () {
-    var nav = document.getElementById('levels'), status = document.getElementById('status');
+    var nav = document.getElementById('studio'), status = document.getElementById('status');
+    var select = document.getElementById('studioRender'), fpsOut = document.getElementById('studioFps');
     var current = nav.getAttribute('data-current');
-    nav.querySelectorAll('a').forEach(function (a) { if (a.dataset.level === current) a.setAttribute('aria-current', 'page'); });
+    var links = nav.querySelectorAll('a');
+    links.forEach(function (a) { if (a.dataset.level === current) a.setAttribute('aria-current', 'page'); });
+
+    // render preset: from the link (#lite), else the last one picked here, else Studio
+    var names = ['studio', 'balanced', 'lite', 'minimal'];
+    var store = { get: function () { try { return localStorage.getItem('jelly-render'); } catch (e) { return null; } },
+                  set: function (v) { try { localStorage.setItem('jelly-render', v); } catch (e) { /* storage blocked */ } } };
+    var fromHash = location.hash.slice(1), saved = store.get();
+    var q = names.indexOf(fromHash) >= 0 ? fromHash : names.indexOf(saved) >= 0 ? saved : 'studio';
+    window.__jellyQuality = q;
+    select.value = q;
+    function carry() { links.forEach(function (a) { a.setAttribute('href', a.getAttribute('href').split('#')[0] + '#' + q); }); }
+    carry();
+    var frames = 0, t0 = performance.now();
+    select.addEventListener('change', function () {
+      q = select.value; window.__jellyQuality = q; store.set(q); carry();
+      try { history.replaceState(null, '', '#' + q); } catch (e) { /* sandboxed */ }
+      window.dispatchEvent(new CustomEvent('jelly-quality', { detail: q }));
+      frames = 0; t0 = performance.now();
+    });
+
+    // frame rate: frames actually delivered to the screen, averaged over half a second
+    var span = fpsOut.querySelector('span');
+    (function tick(now) {
+      frames++;
+      if (now - t0 >= 500) {
+        var fps = frames * 1000 / (now - t0);
+        span.textContent = fps.toFixed(0);
+        fpsOut.title = (1000 / fps).toFixed(1) + ' ms per frame';
+        fpsOut.dataset.load = fps < 30 ? 'slow' : 'ok';
+        frames = 0; t0 = now;
+      }
+      requestAnimationFrame(tick);
+    })(t0);
+
+    // wide screens: one row just left of the status pill, if it clears the title; otherwise the floating bar
     var stacked = matchMedia('(max-width: 860px), (max-height: 560px) and (max-width: 1000px)');
-    // on wide screens the switcher sits just left of the status pill, on the same line
+    var title = document.querySelector('.masthead h1');
     function place() {
-      var beside = !stacked.matches && status;
-      nav.classList.toggle('beside', !!beside);
-      if (!beside) { nav.style.top = nav.style.right = ''; return; }
+      nav.classList.remove('beside'); nav.style.top = nav.style.right = nav.style.height = '';
+      if (stacked.matches || !status) return;
       var r = status.getBoundingClientRect();
+      nav.classList.add('beside');
       nav.style.top = r.top + 'px';
       nav.style.right = (document.documentElement.clientWidth - r.left + 10) + 'px';
       nav.style.height = r.height + 'px';
+      if (title && nav.getBoundingClientRect().left < title.getBoundingClientRect().right + 24) {
+        nav.classList.remove('beside'); nav.style.top = nav.style.right = nav.style.height = '';
+      }
     }
     place();
     addEventListener('resize', place);
     stacked.addEventListener('change', place);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
     if (window.ResizeObserver && status) new ResizeObserver(place).observe(status);
+
     // number keys switch levels
     addEventListener('keydown', function (e) {
       if (e.metaKey || e.ctrlKey || e.altKey || (e.target.closest && e.target.closest('input, textarea, select'))) return;

@@ -1421,6 +1421,32 @@ function frame(now) {
 
 applyPreset(preset);
 setFirmness(0.45); setWobble(0.5);
+
+// ── render presets for the Jelly Studio switcher ──
+// pixel ratio cap, soft (VSM) or plain (PCF) shadows, and whether the jelly uses real transmission
+const QUALITY = {
+  studio:   { pr: 2,    shadows: true,  soft: true,  map: 1024, blur: 20, transmission: true,  dispersion: 0.1 },
+  balanced: { pr: 1,    shadows: true,  soft: true,  map: 1024, blur: 8,  transmission: true,  dispersion: 0 },
+  lite:     { pr: 0.75, shadows: true,  soft: false, map: 512,  blur: 1,  transmission: true,  dispersion: 0 },
+  minimal:  { pr: 0.5,  shadows: true,  soft: false, map: 512,  blur: 1,  transmission: false, dispersion: 0 },
+};
+function setQuality(name) {
+  const q = QUALITY[name] || QUALITY.studio;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pr));
+  renderer.shadowMap.enabled = q.shadows;
+  renderer.shadowMap.type = q.soft ? THREE.VSMShadowMap : THREE.PCFShadowMap;
+  key.shadow.mapSize.set(q.map, q.map); key.shadow.blurSamples = q.blur; key.shadow.radius = q.soft ? 9 : 1;
+  if (key.shadow.map) { key.shadow.map.dispose(); key.shadow.map = null; }
+  if (key.shadow.mapPass) { key.shadow.mapPass.dispose(); key.shadow.mapPass = null; }
+  // without transmission the jelly is a plain see-through gloss: much cheaper, a little flatter
+  jellyMat.transmission = q.transmission ? 0.9 : 0;
+  jellyMat.transparent = !q.transmission; jellyMat.opacity = q.transmission ? 1 : 0.9;
+  jellyMat.dispersion = q.dispersion;
+  scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+  resize();
+}
+window.addEventListener('jelly-quality', e => setQuality(e.detail));
+setQuality(window.__jellyQuality || 'studio');
 resize();
 updateCamera(1, 0);
 canvas.dataset.cursor = 'orbit';

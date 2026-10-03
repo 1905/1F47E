@@ -14,8 +14,20 @@ REPO = HERE.parent
 SWITCHER = (HERE / "switcher.html").read_text()
 
 
+KICKERS = {
+    1: ('<div class="kicker">Material Studies / No. 009</div>', '<div class="kicker">Jelly Studio / No. 009</div>'),
+    2: ('<div class="kicker">Material Studies / No. 010</div>', '<div class="kicker">Jelly Studio / No. 010</div>'),
+    3: ('<div class="label">Material Studies</div>', '<div class="label">Jelly Studio / No. 011</div>'),
+}
+
+
 def with_switcher(html: str, level: int) -> str:
-    nav = SWITCHER.replace('id="levels"', f'id="levels" data-current="{level}"', 1)
+    # the collection is called Jelly Studio: page title and the kicker above each title
+    html = re.sub(r"<title>[^<]*</title>", "<title>Jelly Studio</title>", html, count=1)
+    old, new = KICKERS[level]
+    assert old in html, old
+    html = html.replace(old, new, 1)
+    nav = SWITCHER.replace('id="studio"', f'id="studio" data-current="{level}"', 1)
     i = html.rindex("</body>")
     return html[:i] + nav + html[i:]
 

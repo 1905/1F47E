@@ -60,6 +60,7 @@ async function main() {
 
   let renderer;
   try {
+    Renderer.quality = window.__jellyQuality || 'studio';
     renderer = await Renderer.create(canvas, { cpuPresent: params.has('cpu') });
   } catch (err) {
     console.warn(err);
@@ -234,7 +235,7 @@ async function main() {
 
   function resize() {
     const r = canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, (QUALITY[Renderer.quality] || QUALITY.studio).res);
     renderer.resize(r.width * dpr, r.height * dpr);
   }
   const stacked = matchMedia('(max-width: 860px), (max-height: 560px) and (max-width: 1000px)');
@@ -242,6 +243,8 @@ async function main() {
   stacked.addEventListener('change', applyLayout);
   applyLayout();
   new ResizeObserver(resize).observe(canvas);
+  // render presets from the Jelly Studio switcher
+  window.addEventListener('jelly-quality', e => { renderer.setQuality(e.detail); resize(); });
 
   // ── picking ──
   function rayFrom(clientX, clientY) {

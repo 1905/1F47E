@@ -181,6 +181,9 @@ const WGSL_SCENE = WGSL_COMMON + /* wgsl */`
 @group(0) @binding(1) var shadowMap: texture_depth_2d;
 @group(0) @binding(2) var heightMap: texture_depth_2d;
 @group(0) @binding(3) var cmp: sampler_comparison;
+// render quality: soft-shadow taps and contact-occlusion rings (set per pipeline)
+override SHADOW_TAPS: i32 = 16;
+override AO_RINGS: i32 = 3;
 @group(0) @binding(4) var shadowCol: texture_2d<f32>;
 @group(0) @binding(5) var lin: sampler;
 
@@ -207,7 +210,7 @@ fn keyShadow(P: vec3f) -> Shadow {
   // blocker search → penumbra size (PCSS-lite)
   let dims = vec2f(textureDimensions(shadowMap));
   var blk = 0.0; var nb = 0.0;
-  for (var i = 0; i < 16; i++) {
+  for (var i = 0; i < SHADOW_TAPS; i++) {
     let s = uv + POISSON[i] * 0.016;
     let d = textureLoad(shadowMap, vec2i(clamp(s, vec2f(0.0), vec2f(0.999)) * dims), 0);
     if (d < z - 0.002) { blk += d; nb += 1.0; }
@@ -216,16 +219,17 @@ fn keyShadow(P: vec3f) -> Shadow {
   blk /= nb;
   let pen = clamp((z - blk) * 0.32, 0.002, 0.016);
   var sum = 0.0;
-  let rot = hash3(P * 91.7) * 6.2831;
+  // a random rotation per pixel only pays off with many taps; with few it is just noise
+  let rot = select(0.6, hash3(P * 91.7) * 6.2831, SHADOW_TAPS >= 8);
   let cs = vec2f(cos(rot), sin(rot));
   var tint = vec3f(0.0);
-  for (var i = 0; i < 16; i++) {
+  for (var i = 0; i < SHADOW_TAPS; i++) {
     let q = POISSON[i];
     let r = vec2f(q.x * cs.x - q.y * cs.y, q.x * cs.y + q.y * cs.x);
     sum += textureSampleCompareLevel(shadowMap, cmp, uv + r * pen, z - 0.0015);
     tint += textureSampleLevel(shadowCol, lin, uv + r * pen * 1.5, 0.0).rgb;
   }
-  o.lit = sum / 16.0;
+  o.lit = sum / f32(SHADOW_TAPS);
   o.tint = tint / 16.0;
   return o;
 }
@@ -236,7 +240,7 @@ fn contactAO(P: vec3f) -> f32 {
   let dims = vec2f(textureDimensions(heightMap));
   var occ = 0.0;
   // the height map's depth encodes y linearly over [-1, 4]
-  for (var ring = 0; ring < 3; ring++) {
+  for (var ring = 0; ring < AO_RINGS; ring++) {
     let rad = 0.004 + f32(ring) * 0.009;
     for (var i = 0; i < 8; i++) {
       let a = f32(i) * 0.785398 + f32(ring) * 0.39;
@@ -250,7 +254,7 @@ fn contactAO(P: vec3f) -> f32 {
       }
     }
   }
-  return clamp(occ / 16.0, 0.0, 1.0);
+  return clamp(occ / max(f32(AO_RINGS) * 16.0 / 3.0, 1.0), 0.0, 1.0);
 }
 
 struct BgOut { @location(0) c: vec4f };
@@ -365,6 +369,8 @@ const WGSL_MAIN = WGSL_COMMON + /* wgsl */`
 @group(0) @binding(1) var sceneTex: texture_2d<f32>;
 @group(0) @binding(2) var backTex: texture_2d<f32>;
 @group(0) @binding(3) var lin: sampler;
+// render quality: refraction taps (the last one is the centre)
+override REFR_TAPS: i32 = 7;
 
 @vertex fn vsFull(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
   let p = vec2f(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0;
@@ -454,16 +460,16 @@ fn toUV(p: vec3f) -> vec2f {
   let blurR = (0.0004 + 0.006 * min(reach, 1.0)) * (0.6 + scatK * 0.02);
   var transmitted = vec3f(0.0);
   var pathL = 0.0;
-  for (var k = 0; k < 7; k++) {
+  for (var k = 0; k < REFR_TAPS; k++) {
     let a = f32(k) * 0.8976 + 0.3;
-    let o = select(vec2f(cos(a), sin(a)) * blurR, vec2f(0.0), k == 6);
+    let o = select(vec2f(cos(a), sin(a)) * blurR, vec2f(0.0), k == REFR_TAPS - 1);
     let s = textureSampleLevel(sceneTex, lin, clamp(ruv + o, vec2f(0.001), vec2f(0.999)), 0.0);
     // each tap is absorbed over its own path: to a seed, a bubble, or out through the back
     let pl = clamp(min(thickBack, max(s.a - fz, 0.0) / cosv + 0.02), 0.0, 4.0);
     transmitted += s.rgb * exp(-sigma * pl);
     pathL += pl;
   }
-  transmitted /= 7.0; pathL /= 7.0;
+  transmitted /= f32(REFR_TAPS); pathL /= f32(REFR_TAPS);
   let scat = 1.0 - exp(-scatK * pathL * 0.5 - scatK * 0.02);
 
   // ── light arriving inside the body ──
